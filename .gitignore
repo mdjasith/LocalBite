@@ -1,0 +1,43 @@
+# ============ JAVA ============
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+hs_err_pid*.log
+
+# ============ NODE ============
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# ============ ENV / SECRETS ============
+.env
+.env.local
+.env.*.local
+aiven-ca.pem
+aiven-credentials.txt
+
+# ============ IDE ============
+.idea/
+.vscode/
+*.iml
+.settings/
+.classpath
+.project
+*.swp
+
+# ============ OS ============
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ============ LOGS ============
+*.log
+logs/
+
+# ============ MISC ============
+*.zip
+hashes.txt
+demo.txt

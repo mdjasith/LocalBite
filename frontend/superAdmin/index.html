@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalBite Admin — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/global.css" />
+  <link rel="stylesheet" href="css/login.css" />
+</head>
+<body>
+  <div class="login-split">
+    <aside class="login-visual">
+      <div class="login-visual__inner">
+        <div class="falcon">
+          <svg viewBox="0 0 152 158" width="80" height="83">
+            <g fill="#FF5C39" fill-rule="evenodd">
+              <path d="M 25 10 L 39 35 L 86 66 L 101 104 L 116 110 L 117 101 L 122 105 L 125 123 L 128 109 L 89 61 Z"/>
+              <path d="M 20 27 L 26 41 L 46 55 L 29 50 L 37 62 L 51 69 L 42 70 L 55 86 L 84 99 L 63 57 Z"/>
+              <path d="M 102 24 L 104 52 L 96 43 L 95 55 L 113 85 L 120 63 Z"/>
+              <path d="M 82 101 L 67 104 L 35 125 L 45 127 L 56 120 L 57 122 L 48 133 L 61 129 Z"/>
+              <path d="M 88 118 L 85 127 L 88 127 L 93 133 L 88 135 L 87 138 L 95 138 L 97 141 L 96 147 L 99 146 L 100 139 L 102 147 L 104 143 L 103 137 L 97 134 L 93 127 L 98 116 Z"/>
+            </g>
+          </svg>
+        </div>
+        <h1 class="login-visual__title">LocalBite</h1>
+        <p class="login-visual__sub">Admin Console</p>
+        <p class="login-visual__desc">
+          Manage sellers, orders, payments, and platform operations from one place.
+        </p>
+        <div class="login-visual__badge">Simulated platform · Portfolio project</div>
+      </div>
+    </aside>
+
+    <main class="login-form-panel">
+      <div class="login-form">
+        <div class="login-form__header">
+          <h2>Sign in</h2>
+          <p>Only platform administrators can access this console.</p>
+        </div>
+
+        <form id="loginForm">
+          <div class="field">
+            <label class="field__label">Email address</label>
+            <input type="email" id="email" class="field__input" placeholder="admin@localbite.com" required />
+          </div>
+          <div class="field">
+            <label class="field__label">Password</label>
+            <input type="password" id="password" class="field__input" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn--primary btn--block" id="loginBtn">Sign in</button>
+          <p class="login-error" id="loginError"></p>
+        </form>
+
+        <div class="login-form__footer">
+          LocalBite is a personal portfolio project.<br />
+          Not a real food delivery service.
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

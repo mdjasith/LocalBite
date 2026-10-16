@@ -1,0 +1,87 @@
+﻿:root {
+  /* Brand Colors */
+  --brand-primary: #FF5C39;
+  --brand-primary-dark: #E8431F;
+  --brand-primary-light: #FFE8E1;
+  --brand-secondary: #F43F5E;
+  --brand-tertiary: #7C3AED;
+  --brand-accent: #FBBF24;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #FF5C39 0%, #F43F5E 100%);
+  --gradient-secondary: linear-gradient(135deg, #7C3AED 0%, #2563EB 100%);
+  --gradient-success: linear-gradient(135deg, #10B981 0%, #059669 100%);
+  --gradient-warm: linear-gradient(135deg, #FB923C 0%, #FF5C39 100%);
+  --gradient-aurora: linear-gradient(120deg, #FF5C39 0%, #F43F5E 35%, #7C3AED 100%);
+  --gradient-mesh-1: radial-gradient(at 20% 30%, rgba(255,92,57,0.35) 0%, transparent 50%),
+                     radial-gradient(at 80% 70%, rgba(244,63,94,0.30) 0%, transparent 50%),
+                     radial-gradient(at 50% 90%, rgba(124,58,237,0.25) 0%, transparent 50%);
+  --gradient-mesh-2: radial-gradient(at 80% 20%, rgba(124,58,237,0.35) 0%, transparent 50%),
+                     radial-gradient(at 20% 80%, rgba(37,99,235,0.30) 0%, transparent 50%);
+
+  /* Neutrals */
+  --bg-0: #FAFAFB;
+  --bg-1: #FFFFFF;
+  --bg-2: #F5F5F7;
+  --bg-3: #EBEBEF;
+  --bg-dark: #0F0F1A;
+  --bg-dark-2: #1A1A2E;
+
+  --text-1: #0A0A0F;
+  --text-2: #374151;
+  --text-3: #6B7280;
+  --text-4: #9CA3AF;
+  --text-5: #D1D5DB;
+
+  --border-1: #E5E7EB;
+  --border-2: #F3F4F6;
+  --border-dark: rgba(255,255,255,0.08);
+
+  /* Status */
+  --success: #10B981;
+  --success-bg: #ECFDF5;
+  --danger: #EF4444;
+  --danger-bg: #FEF2F2;
+  --warning: #F59E0B;
+  --warning-bg: #FFFBEB;
+  --info: #3B82F6;
+  --info-bg: #EFF6FF;
+
+  /* Spacing */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --sp-12: 48px; --sp-16: 64px; --sp-20: 80px; --sp-24: 96px;
+
+  /* Radius */
+  --r-xs: 6px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --r-xl: 20px; --r-2xl: 28px; --r-3xl: 36px; --r-full: 9999px;
+
+  /* Shadows - layered premium */
+  --shadow-xs: 0 1px 2px rgba(10,10,15,0.05);
+  --shadow-sm: 0 1px 3px rgba(10,10,15,0.06), 0 1px 2px rgba(10,10,15,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(10,10,15,0.07), 0 2px 4px -2px rgba(10,10,15,0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(10,10,15,0.08), 0 4px 6px -4px rgba(10,10,15,0.05);
+  --shadow-xl: 0 20px 25px -5px rgba(10,10,15,0.10), 0 8px 10px -6px rgba(10,10,15,0.05);
+  --shadow-2xl: 0 25px 50px -12px rgba(10,10,15,0.20);
+  --shadow-brand: 0 10px 30px -5px rgba(255,92,57,0.35);
+  --shadow-brand-lg: 0 20px 50px -10px rgba(255,92,57,0.45);
+
+  /* Glass */
+  --glass-bg: rgba(255,255,255,0.72);
+  --glass-bg-dark: rgba(15,15,26,0.72);
+  --glass-border: rgba(255,255,255,0.6);
+  --glass-blur: blur(20px) saturate(180%);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --t-fast: 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  --t-base: 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  --t-slow: 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  --t-xslow: 600ms cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layout */
+  --navbar-h: 72px;
+  --content-max: 1240px;
+}

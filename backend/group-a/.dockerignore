@@ -1,0 +1,22 @@
+# Don't include build artifacts
+target/
+
+# Don't include secrets
+.env
+.env.local
+
+# Don't include git or IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+*.iml
+
+# Don't include logs
+*.log
+hs_err_pid*.log
+
+# Maven wrapper not needed (using maven image instead)
+mvnw
+mvnw.cmd
+.mvn/
