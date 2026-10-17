@@ -11,71 +11,30 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Service("food_FoodService")
+@Service
 public class FoodService {
-
     private final FoodRepository repo;
     private final CategoryRepository categoryRepo;
     private final SellerClient sellerClient;
 
-    public FoodService(FoodRepository repo,
-                       CategoryRepository categoryRepo,
-                       SellerClient sellerClient) {
+    public FoodService(FoodRepository repo, CategoryRepository categoryRepo, SellerClient sellerClient) {
         this.repo = repo;
         this.categoryRepo = categoryRepo;
         this.sellerClient = sellerClient;
     }
 
-    /* ============================== PUBLIC / SELLER ============================== */
-
-    public FoodResponse get(Long foodId) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-        return FoodResponse.from(f);
-    }
-
-    public List<FoodResponse> listAvailable() {
-        return repo.findByIsAvailable(true).stream()
-                .map(FoodResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    public List<FoodResponse> listBySeller(Long sellerId) {
-        return repo.findBySellerIdAndIsAvailable(sellerId, true).stream()
-                .map(FoodResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    public List<FoodResponse> listAllBySeller(Long sellerId) {
-        return repo.findBySellerId(sellerId).stream()
-                .map(FoodResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    public List<FoodResponse> listByCategory(Long categoryId) {
-        return repo.findByCategoryId(categoryId).stream()
-                .filter(f -> Boolean.TRUE.equals(f.getIsAvailable()))
-                .map(FoodResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    public List<FoodResponse> search(String keyword) {
-        return repo.findByFoodNameContainingIgnoreCaseAndIsAvailable(keyword, true).stream()
-                .map(FoodResponse::from)
-                .collect(Collectors.toList());
-    }
+    public FoodResponse get(Long foodId) { return FoodResponse.from(repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"))); }
+    public List<FoodResponse> listAvailable() { return repo.findByIsAvailable(true).stream().map(FoodResponse::from).collect(Collectors.toList()); }
+    public List<FoodResponse> listBySeller(Long sellerId) { return repo.findBySellerIdAndIsAvailable(sellerId, true).stream().map(FoodResponse::from).collect(Collectors.toList()); }
+    public List<FoodResponse> listAllBySeller(Long sellerId) { return repo.findBySellerId(sellerId).stream().map(FoodResponse::from).collect(Collectors.toList()); }
+    public List<FoodResponse> listByCategory(Long categoryId) { return repo.findByCategoryId(categoryId).stream().filter(f -> Boolean.TRUE.equals(f.getIsAvailable())).map(FoodResponse::from).collect(Collectors.toList()); }
+    public List<FoodResponse> search(String keyword) { return repo.findByFoodNameContainingIgnoreCaseAndIsAvailable(keyword, true).stream().map(FoodResponse::from).collect(Collectors.toList()); }
 
     @Transactional
     public FoodResponse create(String jwtToken, CreateFoodRequest req) {
-        if (!categoryRepo.existsById(req.getCategoryId())) {
-            throw new RuntimeException("Category not found");
-        }
+        if (!categoryRepo.existsById(req.getCategoryId())) throw new RuntimeException("Category not found");
         SellerInfo seller = sellerClient.getCurrentSeller(jwtToken);
-        if (seller == null) throw new RuntimeException("Seller not found");
-        if (!"APPROVED".equals(seller.getSellerStatus())) {
-            throw new RuntimeException("Seller must be APPROVED to add food");
-        }
-
+        if (seller == null || !"APPROVED".equals(seller.getSellerStatus())) throw new RuntimeException("Seller must be APPROVED");
         Food f = new Food();
         f.setSellerId(seller.getSellerId());
         f.setCategoryId(req.getCategoryId());
@@ -92,17 +51,10 @@ public class FoodService {
 
     @Transactional
     public FoodResponse update(String jwtToken, Long foodId, UpdateFoodRequest req) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
         SellerInfo seller = sellerClient.getCurrentSeller(jwtToken);
-        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) {
-            throw new RuntimeException("Not allowed to modify this food");
-        }
-        if (!categoryRepo.existsById(req.getCategoryId())) {
-            throw new RuntimeException("Category not found");
-        }
-
+        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) throw new RuntimeException("Not allowed");
+        if (!categoryRepo.existsById(req.getCategoryId())) throw new RuntimeException("Category not found");
         f.setCategoryId(req.getCategoryId());
         f.setFoodName(req.getFoodName());
         f.setDescription(req.getDescription());
@@ -116,52 +68,34 @@ public class FoodService {
 
     @Transactional
     public FoodResponse toggleAvailability(String jwtToken, Long foodId) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
         SellerInfo seller = sellerClient.getCurrentSeller(jwtToken);
-        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) {
-            throw new RuntimeException("Not allowed to modify this food");
-        }
-
+        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) throw new RuntimeException("Not allowed");
         f.setIsAvailable(!Boolean.TRUE.equals(f.getIsAvailable()));
         return FoodResponse.from(repo.save(f));
     }
 
     @Transactional
     public FoodResponse updateStock(String jwtToken, Long foodId, Integer stock) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
         SellerInfo seller = sellerClient.getCurrentSeller(jwtToken);
-        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) {
-            throw new RuntimeException("Not allowed to modify this food");
-        }
+        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) throw new RuntimeException("Not allowed");
         if (stock < 0) throw new RuntimeException("Stock cannot be negative");
-
         f.setStockQuantity(stock);
         return FoodResponse.from(repo.save(f));
     }
 
     @Transactional
     public void delete(String jwtToken, Long foodId) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
         SellerInfo seller = sellerClient.getCurrentSeller(jwtToken);
-        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) {
-            throw new RuntimeException("Not allowed to delete this food");
-        }
+        if (seller == null || !f.getSellerId().equals(seller.getSellerId())) throw new RuntimeException("Not allowed");
         repo.delete(f);
     }
 
-    /* ============================== ADMIN ============================== */
-
     @Transactional
     public FoodResponse adminCreate(AdminFoodRequest req) {
-        if (!categoryRepo.existsById(req.getCategoryId())) {
-            throw new RuntimeException("Category not found");
-        }
+        if (!categoryRepo.existsById(req.getCategoryId())) throw new RuntimeException("Category not found");
         Food f = new Food();
         f.setSellerId(req.getSellerId());
         f.setCategoryId(req.getCategoryId());
@@ -178,11 +112,7 @@ public class FoodService {
 
     @Transactional
     public FoodResponse adminUpdate(Long foodId, AdminFoodRequest req) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-        if (!categoryRepo.existsById(req.getCategoryId())) {
-            throw new RuntimeException("Category not found");
-        }
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
         f.setSellerId(req.getSellerId());
         f.setCategoryId(req.getCategoryId());
         f.setFoodName(req.getFoodName());
@@ -196,42 +126,26 @@ public class FoodService {
     }
 
     @Transactional
-    public void adminDelete(Long foodId) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-        repo.delete(f);
-    }
+    public void adminDelete(Long foodId) { repo.delete(repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"))); }
 
-    /* ============================== INTERNAL â€” stock adjustment ============================== */
-
-    /**
-     * Adjust stock by a signed delta.
-     * delta < 0 â†’ reduce (order placed)
-     * delta > 0 â†’ restore (order cancelled)
-     * Never goes below 0.
-     */
     @Transactional
     public FoodResponse adjustStock(Long foodId, Integer delta) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-        int current = f.getStockQuantity() == null ? 0 : f.getStockQuantity();
-        int updated = current + (delta == null ? 0 : delta);
-        if (updated < 0) updated = 0;
-        f.setStockQuantity(updated);
-        return FoodResponse.from(repo.save(f));
+        if (delta == null) delta = 0;
+        if (delta < 0) {
+            int updated = repo.reduceStock(foodId, Math.abs(delta));
+            if (updated == 0) throw new RuntimeException("Out of stock for foodId: " + foodId);
+        } else if (delta > 0) {
+            Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
+            f.setStockQuantity(f.getStockQuantity() + delta);
+            repo.save(f);
+        }
+        return FoodResponse.from(repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found")));
     }
 
-    /** Validate that food is orderable and has enough stock. */
     public void assertStockAvailable(Long foodId, Integer requestedQty) {
-        Food f = repo.findById(foodId)
-                .orElseThrow(() -> new RuntimeException("Food not found"));
-        if (!Boolean.TRUE.equals(f.getIsAvailable())) {
-            throw new RuntimeException("Food is not available: " + f.getFoodName());
-        }
+        Food f = repo.findById(foodId).orElseThrow(() -> new RuntimeException("Food not found"));
+        if (!Boolean.TRUE.equals(f.getIsAvailable())) throw new RuntimeException("Food is not available: " + f.getFoodName());
         int stock = f.getStockQuantity() == null ? 0 : f.getStockQuantity();
-        if (stock < requestedQty) {
-            throw new RuntimeException(
-                    "Only " + stock + " left of " + f.getFoodName());
-        }
+        if (stock < requestedQty) throw new RuntimeException("Only " + stock + " left of " + f.getFoodName());
     }
 }

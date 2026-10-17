@@ -1,43 +1,32 @@
-﻿import { createContext, useContext, useState } from 'react'
-import { DEFAULT_LOCATION } from '../utils/constants'
+import { createContext, useContext, useEffect, useState } from 'react'
 
 const LocationContext = createContext(null)
 
 export function LocationProvider({ children }) {
-  const [location, setLocationState] = useState(() => {
+  const [location, setLocation] = useState(null)
+
+  useEffect(() => {
     const saved = localStorage.getItem('lb_location')
     if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return null
-      }
+      try { setLocation(JSON.parse(saved)) } catch { /* ignore */ }
     }
-    return null
-  })
+  }, [])
 
-  const setLocation = (loc) => {
-    setLocationState(loc)
+  const saveLocation = (loc) => {
+    setLocation(loc)
     localStorage.setItem('lb_location', JSON.stringify(loc))
   }
 
   const clearLocation = () => {
-    setLocationState(null)
+    setLocation(null)
     localStorage.removeItem('lb_location')
   }
 
-  const value = {
-    location,
-    hasLocation: !!location,
-    latitude: location?.latitude || null,
-    longitude: location?.longitude || null,
-    address: location?.address || null,
-    setLocation,
-    clearLocation,
-    defaultLocation: DEFAULT_LOCATION,
-  }
-
-  return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>
+  return (
+    <LocationContext.Provider value={{ location, saveLocation, clearLocation, hasLocation: !!location }}>
+      {children}
+    </LocationContext.Provider>
+  )
 }
 
 export function useLocation() {

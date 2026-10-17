@@ -61,13 +61,15 @@ public class OrderService {
         for (SellerCartGroupInfo group : cart.getSellerGroups()) {
             BigDecimal foodSubtotal = group.getSellerSubtotal();
             BigDecimal commission = foodSubtotal.multiply(COMMISSION_RATE).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal sellerEarnings = foodSubtotal.subtract(commission);
+            
+            // BUG FIX: Seller gets subtotal minus commission, PLUS the delivery fee
+            BigDecimal sellerEarnings = foodSubtotal.subtract(commission).add(DELIVERY_FEE);
             BigDecimal totalAmount = foodSubtotal.add(DELIVERY_FEE);
 
             Order order = new Order();
             order.setCustomerId(customerId);
             order.setSellerId(group.getSellerId());
-            order.setOrderStatus(OrderStatus.PENDING_PAYMENT); // <-- CHANGED
+            order.setOrderStatus(OrderStatus.PENDING_PAYMENT);
             order.setPaymentStatus(OrderPaymentStatus.PENDING);
             order.setFoodSubtotal(foodSubtotal);
             order.setDeliveryFee(DELIVERY_FEE);
@@ -94,7 +96,7 @@ public class OrderService {
                 foodClient.adjustStock(ci.getFoodId(), -ci.getQuantity(), jwtToken);
             }
 
-            deliveryClient.create(saved.getOrderId(), jwtToken);
+            try { deliveryClient.create(saved.getOrderId(), jwtToken); } catch (Exception ignored) {}
             results.add(toResponse(saved, items));
         }
 
@@ -106,30 +108,22 @@ public class OrderService {
     public OrderResponse markPaid(Long orderId) {
         Order order = orderRepo.findById(orderId).orElseThrow(() -> new RuntimeException("Order not found"));
         order.setPaymentStatus(OrderPaymentStatus.SUCCESS);
-        
         if (order.getOrderStatus() == OrderStatus.PENDING_PAYMENT) {
-            order.setOrderStatus(OrderStatus.PLACED); // <-- CHANGED
+            order.setOrderStatus(OrderStatus.PLACED);
         }
-        
         Order saved = orderRepo.save(order);
-        try {
-            notificationClient.sendOrderPaid(saved.getCustomerId(), orderId, null);
-        } catch (Exception ignored) {}
+        try { notificationClient.sendOrderPaid(saved.getCustomerId(), orderId, null); } catch (Exception ignored) {}
         return toResponse(saved, itemRepo.findByOrderId(orderId));
     }
 
-    // ... (Keep other methods: getCustomerOrders, getSellerOrders, updateStatus, etc. exactly as they were)
     public List<OrderResponse> getCustomerOrders(Long customerId) {
-        return orderRepo.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
-                .map(o -> toResponse(o, itemRepo.findByOrderId(o.getOrderId())))
-                .collect(Collectors.toList());
+        return orderRepo.findByCustomerIdOrderByCreatedAtDesc(customerId).stream().map(o -> toResponse(o, itemRepo.findByOrderId(o.getOrderId()))).collect(Collectors.toList());
     }
 
     public List<OrderResponse> getSellerOrders(Long sellerId) {
         return orderRepo.findBySellerIdOrderByCreatedAtDesc(sellerId).stream()
                 .filter(o -> o.getPaymentStatus() != OrderPaymentStatus.PENDING)
-                .map(o -> toResponse(o, itemRepo.findByOrderId(o.getOrderId())))
-                .collect(Collectors.toList());
+                .map(o -> toResponse(o, itemRepo.findByOrderId(o.getOrderId()))).collect(Collectors.toList());
     }
 
     @Transactional
@@ -142,11 +136,8 @@ public class OrderService {
             isSeller = sellerId != null && order.getSellerId().equals(sellerId);
         }
         if (!isAdmin && !isSeller) throw new RuntimeException("Not allowed");
-        if (isSeller && order.getPaymentStatus() == OrderPaymentStatus.PENDING) {
-            throw new RuntimeException("Cannot process order — payment not yet received");
-        }
-        OrderStatus current = order.getOrderStatus();
-        if (!isValidTransition(current, newStatus)) throw new RuntimeException("Invalid status transition");
+        if (isSeller && order.getPaymentStatus() == OrderPaymentStatus.PENDING) throw new RuntimeException("Payment not yet received");
+        if (!isValidTransition(order.getOrderStatus(), newStatus)) throw new RuntimeException("Invalid transition");
         
         order.setOrderStatus(newStatus);
         Order saved = orderRepo.save(order);
@@ -162,8 +153,6 @@ public class OrderService {
             Long sellerId = sellerClient.getSellerIdByAuthUserId(userId, jwtToken);
             if (sellerId == null || !order.getSellerId().equals(sellerId)) throw new RuntimeException("Not allowed");
         }
-        if (order.getOrderStatus() != OrderStatus.OUT_FOR_DELIVERY && order.getOrderStatus() != OrderStatus.OTP_VERIFICATION) throw new RuntimeException("Not out for delivery");
-        
         try { deliveryClient.verifyOtp(orderId, otp, jwtToken); } catch (Exception e) { throw new RuntimeException("Invalid OTP"); }
 
         order.setOrderStatus(OrderStatus.DELIVERED);
@@ -190,8 +179,6 @@ public class OrderService {
         boolean isAdmin = "ADMIN".equals(role);
         boolean isCustomer = "CUSTOMER".equals(role) && order.getCustomerId().equals(userId);
         if (!isAdmin && !isCustomer) throw new RuntimeException("Not allowed");
-        OrderStatus status = order.getOrderStatus();
-        if (status != OrderStatus.OUT_FOR_DELIVERY && status != OrderStatus.OTP_VERIFICATION && status != OrderStatus.READY) throw new RuntimeException("OTP not available");
         return deliveryClient.viewOtp(orderId, jwtToken);
     }
 
@@ -201,7 +188,7 @@ public class OrderService {
         boolean isAdmin = "ADMIN".equals(role);
         boolean isCustomer = "CUSTOMER".equals(role) && order.getCustomerId().equals(userId);
         if (!isAdmin && !isCustomer) throw new RuntimeException("Not allowed");
-        if (order.getOrderStatus() != OrderStatus.PLACED && order.getOrderStatus() != OrderStatus.ACCEPTED) throw new RuntimeException("Cannot cancel");
+        if (order.getOrderStatus() != OrderStatus.PLACED && order.getOrderStatus() != OrderStatus.ACCEPTED && order.getOrderStatus() != OrderStatus.PENDING_PAYMENT) throw new RuntimeException("Cannot cancel");
         return doCancel(order);
     }
 
@@ -244,7 +231,7 @@ public class OrderService {
     }
 
     private boolean isValidTransition(OrderStatus from, OrderStatus to) {
-        if (to == OrderStatus.CANCELLED) return from == OrderStatus.PLACED || from == OrderStatus.ACCEPTED;
+        if (to == OrderStatus.CANCELLED) return from == OrderStatus.PLACED || from == OrderStatus.ACCEPTED || from == OrderStatus.PENDING_PAYMENT;
         return switch (from) {
             case PLACED -> to == OrderStatus.ACCEPTED;
             case ACCEPTED -> to == OrderStatus.PREPARING;

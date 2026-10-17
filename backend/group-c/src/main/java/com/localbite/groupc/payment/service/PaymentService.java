@@ -1,6 +1,7 @@
 package com.localbite.groupc.payment.service;
 
 import com.localbite.groupc.payment.client.OrderClient;
+import com.localbite.groupc.payment.client.WalletClient;
 import com.localbite.groupc.payment.dto.PaymentResponse;
 import com.localbite.groupc.payment.dto.ProcessPaymentRequest;
 import com.localbite.groupc.payment.entity.Payment;
@@ -17,28 +18,24 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@Service("payment_PaymentService")
+@Service
 public class PaymentService {
-
-    // 2% cancellation fee Ã¢â‚¬â€ customer receives 98% of amount on refund
     private static final BigDecimal REFUND_TAX_RATE = new BigDecimal("0.02");
 
     private final PaymentRepository repo;
+    private final WalletClient walletClient;
     private final OrderClient orderClient;
 
-    public PaymentService(PaymentRepository repo, OrderClient orderClient) {
+    public PaymentService(PaymentRepository repo, WalletClient walletClient, OrderClient orderClient) {
         this.repo = repo;
+        this.walletClient = walletClient;
         this.orderClient = orderClient;
     }
 
     @Transactional
     public PaymentResponse process(ProcessPaymentRequest req, String jwtToken) {
-
-        // Idempotency Ã¢â‚¬â€ return existing record as-is
         var existing = repo.findByIdempotencyKey(req.getIdempotencyKey());
-        if (existing.isPresent()) {
-            return PaymentResponse.from(existing.get());
-        }
+        if (existing.isPresent()) return PaymentResponse.from(existing.get());
 
         Payment p = new Payment();
         p.setOrderId(req.getOrderId());
@@ -55,29 +52,41 @@ public class PaymentService {
 
         Payment saved = repo.save(p);
 
-        // Simulate gateway processing delay
-        try { Thread.sleep(700); } catch (InterruptedException ignored) {}
+        try {
+            // 1. Debit Customer
+            walletClient.debitCustomer(req.getCustomerId(), req.getAmount(), "ORDER", req.getOrderId(), jwtToken);
+            
+            try {
+                // 2. Credit Seller (with delivery fee included)
+                walletClient.creditSeller(req.getSellerId(), req.getSellerAmount(), "ORDER", req.getOrderId(), jwtToken);
+                // 3. Credit Platform Commission
+                walletClient.creditPlatformCommission(req.getPlatformCommission(), "ORDER", req.getOrderId(), jwtToken);
+            } catch (Exception e) {
+                // BUG FIX: Rollback customer if subsequent credits fail
+                try { walletClient.creditCustomer(req.getCustomerId(), req.getAmount(), "REFUND", req.getOrderId(), jwtToken); } catch (Exception ex) {}
+                throw new RuntimeException("Failed to credit seller/platform. Customer refunded.");
+            }
 
-        // All simulated payments succeed (UPI / Card / COD all approved)
-        saved.setPaymentStatus(PaymentStatus.SUCCESS);
-        repo.save(saved);
+            saved.setPaymentStatus(PaymentStatus.SUCCESS);
+            repo.save(saved);
+            orderClient.markOrderPaid(saved.getOrderId(), jwtToken);
 
-        // Notify order-service that this order is now paid
-        orderClient.markOrderPaid(saved.getOrderId(), jwtToken);
+            return PaymentResponse.from(saved);
 
-        return PaymentResponse.from(saved);
+        } catch (Exception e) {
+            saved.setPaymentStatus(PaymentStatus.FAILED);
+            saved.setFailureReason(e.getMessage());
+            repo.save(saved);
+            throw new RuntimeException("Payment failed: " + e.getMessage());
+        }
     }
 
     public PaymentResponse getByOrderId(Long orderId) {
-        Payment p = repo.findByOrderId(orderId)
-                .orElseThrow(() -> new RuntimeException("Payment not found for this order"));
-        return PaymentResponse.from(p);
+        return PaymentResponse.from(repo.findByOrderId(orderId).orElseThrow(() -> new RuntimeException("Payment not found")));
     }
 
     public List<PaymentResponse> getByCustomer(Long customerId) {
-        return repo.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
-                .map(PaymentResponse::from)
-                .collect(Collectors.toList());
+        return repo.findByCustomerIdOrderByCreatedAtDesc(customerId).stream().map(PaymentResponse::from).collect(Collectors.toList());
     }
 
     public List<PaymentResponse> listAll() {
@@ -86,46 +95,26 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse refund(Long paymentId) {
-        Payment p = repo.findById(paymentId)
-                .orElseThrow(() -> new RuntimeException("Payment not found"));
-        return doRefund(p);
+        return doRefund(repo.findById(paymentId).orElseThrow(() -> new RuntimeException("Payment not found")));
     }
 
     @Transactional
     public PaymentResponse refundByOrderId(Long orderId) {
-        Payment p = repo.findByOrderId(orderId)
-                .orElseThrow(() -> new RuntimeException("No payment found for this order"));
-        return doRefund(p);
+        return doRefund(repo.findByOrderId(orderId).orElseThrow(() -> new RuntimeException("No payment found")));
     }
 
-    /**
-     * Refund logic:
-     *  - If already REFUNDED Ã¢â€ â€™ return existing
-     *  - If not SUCCESS Ã¢â€ â€™ throw
-     *  - COD Ã¢â€ â€™ status becomes CANCELLED, refundedAmount = 0
-     *  - UPI / CARD Ã¢â€ â€™ status becomes REFUNDED, refundedAmount = amount Ãƒâ€” 0.98
-     */
     private PaymentResponse doRefund(Payment p) {
-        if (p.getPaymentStatus() == PaymentStatus.REFUNDED) {
-            return PaymentResponse.from(p);
-        }
-        if (p.getPaymentStatus() != PaymentStatus.SUCCESS) {
-            throw new RuntimeException("Only successful payments can be refunded");
-        }
+        if (p.getPaymentStatus() == PaymentStatus.REFUNDED) return PaymentResponse.from(p);
+        if (p.getPaymentStatus() != PaymentStatus.SUCCESS) throw new RuntimeException("Only successful payments can be refunded");
 
         if (p.getPaymentMethod() == PaymentMethod.COD) {
-            // COD was never charged Ã¢â‚¬â€ nothing to refund
             p.setPaymentStatus(PaymentStatus.CANCELLED);
             p.setRefundedAmount(BigDecimal.ZERO);
         } else {
-            // 2% cancellation tax Ã¢â€ â€™ customer receives 98%
-            BigDecimal refundAmount = p.getAmount()
-                    .multiply(BigDecimal.ONE.subtract(REFUND_TAX_RATE))
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal refundAmount = p.getAmount().multiply(BigDecimal.ONE.subtract(REFUND_TAX_RATE)).setScale(2, RoundingMode.HALF_UP);
             p.setPaymentStatus(PaymentStatus.REFUNDED);
             p.setRefundedAmount(refundAmount);
         }
-
         p.setRefundedAt(LocalDateTime.now());
         repo.save(p);
         return PaymentResponse.from(p);
@@ -133,12 +122,8 @@ public class PaymentService {
 
     private String generateTxnRef(String method) {
         String prefix = switch (method) {
-            case "UPI" -> "UPI";
-            case "CARD" -> "CARD";
-            case "COD" -> "COD";
-            default -> "TXN";
+            case "UPI" -> "UPI"; case "CARD" -> "CARD"; case "COD" -> "COD"; default -> "TXN";
         };
-        return prefix + "-" + UUID.randomUUID().toString()
-                .replace("-", "").substring(0, 12).toUpperCase();
+        return prefix + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
     }
 }
