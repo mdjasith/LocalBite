@@ -57,14 +57,14 @@ public class PaymentService {
             walletClient.debitCustomer(req.getCustomerId(), req.getAmount(), "ORDER", req.getOrderId(), jwtToken);
             
             try {
-                // 2. Credit Seller (with delivery fee included)
+                // 2. Credit Seller (includes delivery fee)
                 walletClient.creditSeller(req.getSellerId(), req.getSellerAmount(), "ORDER", req.getOrderId(), jwtToken);
                 // 3. Credit Platform Commission
                 walletClient.creditPlatformCommission(req.getPlatformCommission(), "ORDER", req.getOrderId(), jwtToken);
             } catch (Exception e) {
-                // BUG FIX: Rollback customer if subsequent credits fail
-                try { walletClient.creditCustomer(req.getCustomerId(), req.getAmount(), "REFUND", req.getOrderId(), jwtToken); } catch (Exception ex) {}
-                throw new RuntimeException("Failed to credit seller/platform. Customer refunded.");
+                // Rollback customer if subsequent credits fail
+                walletClient.creditCustomer(req.getCustomerId(), req.getAmount(), "REFUND", req.getOrderId(), jwtToken);
+                throw new RuntimeException("Failed to credit seller. Customer refunded.");
             }
 
             saved.setPaymentStatus(PaymentStatus.SUCCESS);
