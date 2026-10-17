@@ -2,12 +2,17 @@
 // LocalBite Admin — API configuration
 // ============================================
 
+// Admin Panel Configuration
+// This file tells the admin panel where your live backend groups are hosted.
+
 const API_BASES = {
-  A: 'http://localhost:8081',  // auth, user, seller, admin
-  B: 'http://localhost:8084',  // food, cart, order
-  C: 'http://localhost:8088',  // payment, wallet, commission
-  D: 'http://localhost:8091',  // delivery, review, invoice, notification, location
-}
+  A: 'https://localbite-group-a.onrender.com',
+  B: 'https://localbite-group-b.onrender.com',
+  C: 'https://localbite-group-c.mdjasith.blitz.cloud',
+  D: 'https://localbite-group-d.onrender.com',
+};
+
+const TOKEN_KEY = 'lb_admin_token';
 
 const ROUTE_MAP = [
   // Group A
