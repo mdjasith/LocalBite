@@ -91,28 +91,38 @@ export default function Payment() {
     setProcessing(true)
     setStage('processing')
 
-    const sellerAmount =
-      Number(order.sellerEarnings) ||
-      Number((Number(order.foodSubtotal) * 0.9).toFixed(2))
+    // BULLETPROOF NUMBER CALCULATIONS TO PREVENT NaN ERRORS
+    const foodSubtotal = Number(order.foodSubtotal) || 0
+    const totalAmount = Number(order.totalAmount) || (foodSubtotal + 30)
+    
+    // Fallbacks if backend didn't send these fields
+    const platformCommission = Number(order.platformCommission) || (foodSubtotal * 0.10)
+    const sellerAmount = Number(order.sellerEarnings) || (foodSubtotal - platformCommission)
+    
+    const finalAmount = totalAmount + (method === 'COD' ? COD_FEE : 0)
 
     let detail = null
     if (method === 'UPI') detail = `${upiApp.id}-${upiId || 'user' + upiApp.handle}`
     if (method === 'CARD') detail = `${cardBrand || 'card'}-****${card.number.slice(-4)}`
 
-    try {
-      await processPayment({
-        orderId: Number(order.orderId),
-        customerId: Number(order.customerId),
-        sellerId: Number(order.sellerId),
-        amount: Number(order.totalAmount) + (method === 'COD' ? COD_FEE : 0),
-        platformCommission: Number(order.platformCommission),
-        sellerAmount,
-        paymentMethod: method,
-        paymentDetail: detail,
-        idempotencyKey: `PAY-${order.orderId}-${method}-${Date.now()}`,
-      })
+    const payload = {
+      orderId: Number(order.orderId),
+      customerId: Number(order.customerId),
+      sellerId: Number(order.sellerId),
+      amount: finalAmount,
+      platformCommission: platformCommission,
+      sellerAmount: sellerAmount,
+      paymentMethod: method,
+      paymentDetail: detail,
+      idempotencyKey: `PAY-${order.orderId}-${method}-${Date.now()}`,
+    }
 
-      triggerEmails(order, method, Number(order.totalAmount) + (method === 'COD' ? COD_FEE : 0))
+    console.log("Sending Payment Payload:", payload) // DEBUG LOG
+
+    try {
+      await processPayment(payload)
+
+      triggerEmails(order, method, finalAmount)
 
       toast.success(method === 'COD' ? 'Order placed — pay on delivery' : 'Payment successful')
       navigate(`/order-success/${order.orderId}`, { replace: true })
@@ -128,7 +138,11 @@ export default function Payment() {
     setStage('processing')
     try {
       await new Promise((r) => setTimeout(r, 700))
-      triggerEmails(order, 'COD', Number(order.totalAmount) + COD_FEE)
+      const foodSubtotal = Number(order.foodSubtotal) || 0
+      const totalAmount = Number(order.totalAmount) || (foodSubtotal + 30)
+      
+      triggerEmails(order, 'COD', totalAmount + COD_FEE)
+      
       toast.success('Order confirmed — pay on delivery')
       navigate(`/order-success/${order.orderId}`, { replace: true })
     } catch {
@@ -163,7 +177,7 @@ export default function Payment() {
   return (
     <div className="page" style={{ background: '#F5F5F7', minHeight: 'calc(100vh - var(--navbar-h))' }}>
       <div className="container" style={{ padding: '24px 24px 100px', maxWidth: 520 }}>
-
+        
         <button
           onClick={goBack}
           style={{
