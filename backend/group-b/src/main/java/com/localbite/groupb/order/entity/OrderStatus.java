@@ -1,6 +1,7 @@
 package com.localbite.groupb.order.entity;
 
 public enum OrderStatus {
+    PENDING_PAYMENT,
     PLACED,
     ACCEPTED,
     PREPARING,

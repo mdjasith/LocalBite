@@ -14,8 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-@RestController("order_OrderController")
+@RestController
 @RequestMapping("/api/orders")
 public class OrderController {
 
@@ -32,23 +33,15 @@ public class OrderController {
         return ResponseEntity.ok(Map.of("status", "UP", "service", "order-service"));
     }
 
-    /* ============================== CUSTOMER ============================== */
-
     @PostMapping("/place")
-    public ResponseEntity<List<OrderResponse>> place(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer,
-            @Valid @RequestBody PlaceOrderRequest req) {
+    public ResponseEntity<List<OrderResponse>> place(Authentication auth, @RequestHeader("Authorization") String bearer, @Valid @RequestBody PlaceOrderRequest req) {
         Long userId = (Long) auth.getCredentials();
         String jwt = bearer.replace("Bearer ", "");
         return ResponseEntity.ok(service.placeOrders(userId, jwt, req));
     }
 
     @GetMapping("/me")
-    public ResponseEntity<List<OrderResponse>> myOrders(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer) {
-
+    public ResponseEntity<List<OrderResponse>> myOrders(Authentication auth, @RequestHeader("Authorization") String bearer) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority();
 
@@ -60,17 +53,20 @@ public class OrderController {
             String jwt = bearer.replace("Bearer ", "");
             Long sellerId = sellerClient.getSellerIdByAuthUserId(userId, jwt);
             if (sellerId == null) return ResponseEntity.ok(Collections.emptyList());
-            return ResponseEntity.ok(service.getSellerOrders(sellerId));
+            
+            // Filter out PENDING_PAYMENT orders so sellers don't see unpaid orders
+            List<OrderResponse> paidOrders = service.getSellerOrders(sellerId).stream()
+                .filter(o -> !"PENDING_PAYMENT".equals(o.getOrderStatus()))
+                .collect(Collectors.toList());
+                
+            return ResponseEntity.ok(paidOrders);
         }
 
         return ResponseEntity.badRequest().build();
     }
 
     @GetMapping("/{orderId}")
-    public ResponseEntity<OrderResponse> getOne(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable Long orderId) {
+    public ResponseEntity<OrderResponse> getOne(Authentication auth, @RequestHeader("Authorization") String bearer, @PathVariable Long orderId) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
         String jwt = bearer.replace("Bearer ", "");
@@ -78,11 +74,7 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/status")
-    public ResponseEntity<OrderResponse> updateStatus(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable Long orderId,
-            @Valid @RequestBody UpdateStatusRequest req) {
+    public ResponseEntity<OrderResponse> updateStatus(Authentication auth, @RequestHeader("Authorization") String bearer, @PathVariable Long orderId, @Valid @RequestBody UpdateStatusRequest req) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
         String jwt = bearer.replace("Bearer ", "");
@@ -90,10 +82,7 @@ public class OrderController {
     }
 
     @GetMapping("/{orderId}/view-otp")
-    public ResponseEntity<Map<String, Object>> viewOtp(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable Long orderId) {
+    public ResponseEntity<Map<String, Object>> viewOtp(Authentication auth, @RequestHeader("Authorization") String bearer, @PathVariable Long orderId) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
         String jwt = bearer.replace("Bearer ", "");
@@ -101,11 +90,7 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/verify-delivery")
-    public ResponseEntity<OrderResponse> verifyDelivery(
-            Authentication auth,
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable Long orderId,
-            @Valid @RequestBody VerifyDeliveryRequest req) {
+    public ResponseEntity<OrderResponse> verifyDelivery(Authentication auth, @RequestHeader("Authorization") String bearer, @PathVariable Long orderId, @Valid @RequestBody VerifyDeliveryRequest req) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
         String jwt = bearer.replace("Bearer ", "");
@@ -113,22 +98,16 @@ public class OrderController {
     }
 
     @PutMapping("/{orderId}/cancel")
-    public ResponseEntity<OrderResponse> cancel(
-            Authentication auth,
-            @PathVariable Long orderId) {
+    public ResponseEntity<OrderResponse> cancel(Authentication auth, @PathVariable Long orderId) {
         Long userId = (Long) auth.getCredentials();
         String role = auth.getAuthorities().iterator().next().getAuthority().replace("ROLE_", "");
         return ResponseEntity.ok(service.cancel(orderId, userId, role));
     }
 
-    /* ============================== INTERNAL â€” called by payment-service ============================== */
-
     @PutMapping("/{orderId}/mark-paid")
     public ResponseEntity<OrderResponse> markPaid(@PathVariable Long orderId) {
         return ResponseEntity.ok(service.markPaid(orderId));
     }
-
-    /* ============================== ADMIN ============================== */
 
     @GetMapping("/admin/all")
     public ResponseEntity<List<OrderResponse>> adminListAll() {
@@ -141,9 +120,7 @@ public class OrderController {
     }
 
     @PutMapping("/admin/{orderId}/deliver")
-    public ResponseEntity<OrderResponse> adminForceDeliver(
-            @RequestHeader("Authorization") String bearer,
-            @PathVariable Long orderId) {
+    public ResponseEntity<OrderResponse> adminForceDeliver(@RequestHeader("Authorization") String bearer, @PathVariable Long orderId) {
         String jwt = bearer.replace("Bearer ", "");
         return ResponseEntity.ok(service.adminForceDeliver(orderId, jwt));
     }
